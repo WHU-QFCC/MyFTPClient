@@ -49,8 +49,6 @@ END_MESSAGE_MAP()
 
 // CMyFtpClientDlg 对话框
 
-
-
 CMyFtpClientDlg::CMyFtpClientDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_MYFTPCLIENT_DIALOG, pParent)
 	, m_strFtp(_T(""))
@@ -310,22 +308,19 @@ void CMyFtpClientDlg::UpdateDir()
 	m_listFile.ResetContent();
 	//读写服务器中的数据，需要创建一个CFtpFileFind的实例
 	pConnection->SetCurrentDirectory(dir);//改变目录到当前服务目录
+
 	CFtpFileFind ftpfind(pConnection);
 	//找到第一个文件或者文件夹，通过CFtpFileFind::FindFile实现
 	BOOL bfind = ftpfind.FindFile(NULL);
 	while (bfind)
 	{
 		bfind = ftpfind.FindNextFile();
-		CString strpath;
-		if (!ftpfind.IsDirectory())//判断是目录还是文件夹
-		{
-			strpath = ftpfind.GetFileName();//是文件则读取文件名
-			m_listFile.AddString(strpath);
-		}
-		else {
-			strpath = ftpfind.GetFilePath();//如果是文件夹则获取相对路径
-			m_listFile.AddString(strpath);
-		}
+		CString strFile;
+		strFile = ftpfind.GetFileName();  // 获得找到的文件的文件名
+			// 如果找到的是否目录，将目录名放在括弧中
+		if (ftpfind.IsDirectory())  strFile = (L"[") + strFile + (L"]");
+		// 将找到的文件或目录名显示在列表框中。
+		m_listFile.AddString(strFile);
 	}
 
 	if (pConnection != NULL)
@@ -363,6 +358,9 @@ void CMyFtpClientDlg::OnQuery()
 		e->Delete();                          // 无法建立连接，进行错误处理
 		pConnection = NULL;
 	}
+
+	//设置当前目录
+	if (pConnection != NULL) pConnection->GetCurrentDirectory(dir);
 
 	if (pConnection != NULL)
 	{// 创建CFtpFileFind对象，向构造函数传递CFtpConnection对象的指针
@@ -565,26 +563,28 @@ void CMyFtpClientDlg::OnClickedNxtdir()
 	}
 
 	CString selfile, selDir;
+	CString l("[");
+	CString r("]");
 	//获取用户选择的目录名
 	m_listFile.GetText(m_listFile.GetCurSel(), selfile);
+	if (selfile.GetAt(0) != l && selfile.GetAt(selfile.GetLength() - 1) != r)
+	{
+		AfxMessageBox(L"请选择文件夹！", MB_OK | MB_ICONSTOP);
+		return;
+	}
 	for (int i = 1; i < selfile.GetLength() - 1; i++)
 	{
 		selDir += selfile.GetAt(i);
 	}
-	//CString temp;
-	//for (int i = 1; i < selfile.GetLength - 1; i++) temp[i - 1] = selfile[i];
+
 	if (!selfile.IsEmpty())
 	{
-		//pFtpConnection->Close();//及时关闭废弃的会话句柄
-		//this->ConnectFtp();//重新连接，保持与服务器的持续会话
-		//CString strdir;
-		//pConnection->GetCurrentDirectory(strdir);//获得原来的工作目录
-		//strdir += selfile;//生成新的目录
-		//pConnection->SetCurrentDirectory(strdir);//改变目录到当前服务目录
-		pConnection->GetCurrentDirectory(dir);//获得原来的工作目录
+		//pConnection->GetCurrentDirectoryW(dir);//获得原来的工作目录
 		CString temp;
 		temp = dir + ("/") + selDir;
 		dir = temp;//生成新的目录
+
+		
 
 		//pConnection->SetCurrentDirectory(dir);//改变目录到当前服务目录
 		this->UpdateDir();//更新目录列表
@@ -604,4 +604,54 @@ void CMyFtpClientDlg::OnClickedNxtdir()
 void CMyFtpClientDlg::OnClickedPredir()
 {
 	// TODO: 在此添加控件通知处理程序代码
+	CInternetSession* pSession;      //定义会话对象变量指针
+	CFtpConnection* pConnection;    //定义连接对象变量指针
+
+	pConnection = NULL;
+
+	//创建Internet会话对象
+	pSession = new CInternetSession(AfxGetAppName(), 1, PRE_CONFIG_INTERNET_ACCESS);
+
+	try
+	{
+		//建立FTP连接
+		pConnection = pSession->GetFtpConnection(m_strFtp, m_strName, m_strPwd);
+	}
+	catch (CInternetException* e)
+	{
+		//错误处理
+		e->Delete();
+		pConnection = NULL;
+		return;
+	}
+	
+
+	//pConnection->GetCurrentDirectory(dir);//获得原来的工作目录
+	int last;//记录上一级目录的结束位置
+	CString cstr("/");
+	for (int j = dir.GetLength() - 1; j >= 0; j--)
+	{
+		if (dir.GetAt(j) == cstr)
+		{
+			last = j;
+			break;
+		}
+	}
+	CString temp;
+	for (int j = 0; j < last; j++)
+	{
+		temp += dir.GetAt(j);
+	}
+	dir = temp;//生成新的目录
+	
+	//pConnection->SetCurrentDirectory(dir);//改变目录到当前服务目录
+	this->UpdateDir();//更新目录列表
+
+	
+	if (pConnection != NULL)
+	{
+		pConnection->Close();
+		delete pConnection;
+	}
+	delete pSession;
 }

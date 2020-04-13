@@ -57,7 +57,7 @@ private:
 	CButton m_btnUpload;
 	CListBox m_listFile;	
 	CButton m_exit;
-	CString dir;
+	CString dir;//记录当前目录
 public:
 	afx_msg void OnClickedIdcancle();
 private:
